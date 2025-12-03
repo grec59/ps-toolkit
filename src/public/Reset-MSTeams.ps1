@@ -1,6 +1,7 @@
 function Clear-MSTeams {
     param(
         [string]$InstallerUrl = "https://go.microsoft.com/fwlink/?linkid=2196106",
+        # [string]$bootstrap = "https://go.microsoft.com/fwlink/?linkid=2243204&clcid=0x409",
         [string]$InstallerPath = "$env:TEMP\MSTeams-x64.msix"
     )
 
@@ -52,6 +53,7 @@ function Clear-MSTeams {
     try {
         Write-Output "Installing Microsoft Teams silently..."
         Add-AppxPackage -Path $InstallerPath -ForceApplicationShutdown -ErrorAction Stop
+        # .\teamsbootstrapper.exe -p -o $InstallerPath
         Write-Output "Microsoft Teams installation complete."
     } catch {
         Write-Output "ERROR: Installation failed: $_"
