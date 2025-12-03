@@ -1,14 +1,14 @@
 function Run-DellUpdates {
-    Write-Host "Running System Updates..." -ForegroundColor Cyan
-    $path = 'C:\Program Files\Dell\CommandUpdate\dcu-cli.exe'
-    if (Test-Path $path) {
-        Start-Sleep -Seconds 2
-        "Dell Command CLI application detected, starting updates..." | Out-File -FilePath $output -Encoding utf8 -Append
-        & "$path" /applyUpdates -autoSuspendBitLocker=enable -forceupdate=enable -outputLog='C:\command.log'
-    } 
-    
-    else {
-        Write-Host "WARN: Dell Command application not detected, skipping updates."  -ForegroundColor Yellow
-         "WARN: Dell Command CLI application not detected, skipping updates." | Out-File -FilePath $output -Encoding utf8 -Append
-    }
+    $dcu = 'C:\Program Files\Dell\CommandUpdate\dcu-cli.exe'
+    $log = 'C:\results.txt'
+
+    if (-not (Test-Path $dcu)) { Write-Output "WARN: Dell CLI not found. Skipping."; return }
+
+    Write-Output "Running Dell Updates..."
+    Remove-Item $log -ErrorAction SilentlyContinue
+
+    & $dcu /applyUpdates -autoSuspendBitLocker=enable -forceUpdate=enable 2>&1 |
+        ForEach-Object { "$([datetime]::Now) $_" | Tee-Object -FilePath $log -Append -Encoding UTF8 }
+
+    Write-Output "Updates completed. Log saved to $log"
 }
