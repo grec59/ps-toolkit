@@ -1,41 +1,57 @@
 function Clear-MSTeams {
-    # Stop Microsoft Teams processes
-    Write-Host "Stopping Microsoft Teams processes..." -ForegroundColor Cyan
-    Get-Process *teams* -ErrorAction SilentlyContinue | Stop-Process -Force
+    param(
+        [string]$InstallerUrl = "https://go.microsoft.com/fwlink/?linkid=2196106",
+        [string]$InstallerPath = "$env:TEMP\MSTeams-x64.msix"
+    )
 
-    # Prompt user to select profile(s)
-    $users = Get-ChildItem C:\Users | Out-GridView -PassThru
+    # Stop Teams processes
+    Write-Output "Stopping Microsoft Teams processes..."
+    Get-Process *teams* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-    foreach ($user in $users) {
-        $teamsCachePath = Join-Path -Path $user.FullName -ChildPath "AppData\Local\Packages\MSTeams_8wekyb3d8bbwe"
+    # Clear Teams cache
+    Get-ChildItem C:\Users -Directory | ForEach-Object {
+        $userProfile = $_.FullName
+        $paths = @(
+            Join-Path $userProfile "AppData\Local\Packages\MSTeams_8wekyb3d8bbwe"
+            Join-Path $userProfile "AppData\Roaming\Microsoft\Teams"
+        )
 
-        if (Test-Path $teamsCachePath) {
-            Remove-Item -Path $teamsCachePath -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host "Cleared Teams cache for: $($user.Name)" -ForegroundColor Green
-        } else {
-            Write-Host "Teams cache not found for: $($user.Name)" -ForegroundColor Yellow
+        foreach ($path in $paths) {
+            if (Test-Path $path) {
+                Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Output "Cleared Teams cache for $($_.Name) at $path"
+            }
         }
-
-        Start-Sleep -Seconds 2
     }
 
-    # Download the Microsoft Teams offline installer
-    $installerUrl = "https://go.microsoft.com/fwlink/?linkid=2196106"
-    $installerPath = "$env:TEMP\MSTeams-x64.msix"
+    # Download Microsoft Teams installer using BITS
+    Write-Output "Starting Microsoft Teams installer download..."
+    if (Test-Path $InstallerPath) { Remove-Item $InstallerPath -Force }
 
-    Write-Host "Downloading Microsoft Teams installer..." -ForegroundColor Cyan
+    $job = Start-BitsTransfer -Source $InstallerUrl -Destination $InstallerPath -Asynchronous
 
-    try {
-        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
-        Write-Host "Download completed: $installerPath" -ForegroundColor Green
-    } catch {
-        Write-Host "Error downloading installer: $_" -ForegroundColor Red
+    # Monitor progress
+    do {
+        $progress = ($job.BytesTransferred / $job.BytesTotal) * 100
+        Write-Output ("Download progress: {0:N1}%" -f $progress)
+        Start-Sleep -Seconds 1
+    } while ($job.JobState -eq "Transferring")
+
+    Complete-BitsTransfer -BitsJob $job
+
+    if (-not (Test-Path $InstallerPath)) {
+        Write-Output "ERROR: Installer download failed, cannot proceed."
         return
     }
 
-    # Launch the installer
-    Write-Host "Launching installer..." -ForegroundColor Cyan
-    Start-Process -FilePath $installerPath
+    Write-Output "Download completed: $InstallerPath"
 
-    Write-Host "Microsoft Teams repair complete." -ForegroundColor Green
+    # Automate MSIX installation
+    try {
+        Write-Output "Installing Microsoft Teams silently..."
+        Add-AppxPackage -Path $InstallerPath -ForceApplicationShutdown -ErrorAction Stop
+        Write-Output "Microsoft Teams installation complete."
+    } catch {
+        Write-Output "ERROR: Installation failed: $_"
+    }
 }
