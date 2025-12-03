@@ -1,10 +1,23 @@
 function Update-HostsFile {
-    $hostname = Read-Host "Enter the hostname"
-    $ip = Read-Host "Enter the IP address"
+    [CmdletBinding()] param(
+        [Parameter(Mandatory)]
+        [ValidatePattern('^(?:\d{1,3}\.){3}\d{1,3}$')] $IPAddress,
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()] $Hostname
+    )
+
     $hosts = "$env:SystemRoot\System32\drivers\etc\hosts"
-    $entry = "`n$ip`t$hostname"
-    # Backup the original hosts file
-    Copy-Item $hosts "$hosts.bak" -Force
-    Add-Content -Path $hosts -Value $entry
-    Write-Output "Entry added: $ip $hostname"
+    $backup = "$hosts.$((Get-Date -f yyyyMMddHHmmss)).bak"
+
+    Copy-Item $hosts $backup -Force
+
+    $entry = "$IPAddress`t$Hostname"
+    if (-not (Select-String $hosts -Pattern "^\s*$IPAddress\s+$Hostname\s*$" -SimpleMatch)) {
+        Add-Content $hosts $entry
+        "Added: $entry"
+    }
+    else {
+        "Already exists: $entry"
+    }
 }
+
