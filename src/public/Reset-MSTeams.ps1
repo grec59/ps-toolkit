@@ -32,8 +32,10 @@ function Clear-MSTeams {
 
     # Monitor progress
     do {
+        if ($job.BytesTotal -gt 0) {
         $progress = ($job.BytesTransferred / $job.BytesTotal) * 100
         Write-Output ("Download progress: {0:N1}%" -f $progress)
+        }
         Start-Sleep -Seconds 1
     } while ($job.JobState -eq "Transferring")
 
