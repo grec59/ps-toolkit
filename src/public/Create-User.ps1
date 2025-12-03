@@ -1,33 +1,45 @@
 function Create-User {
-    param(
-        [PSCredential]$Credential
-    )
-
-    Write-Host "Creating Local User Account..." -ForegroundColor Cyan
-
-    if (-not $Credential) {
-        $Credential = Get-Credential -Message "Enter credentials for the new local user:"
-        if (-not $Credential) { return }
+    # Prompt for username
+    $username = Read-Host "Enter the new local username"
+    if (-not $username) {
+        Write-Output "No username entered. Exiting."
+        return
     }
 
-    $username = $Credential.UserName
-    $password = $Credential.Password
+    # Prompt for password securely with confirmation
+    do {
+        $password1 = Read-Host "Enter password" -AsSecureString
+        $password2 = Read-Host "Confirm password" -AsSecureString
 
+        # Convert SecureStrings to plain text for comparison
+        $first = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($password1)
+        )
+        $second = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2)
+        )
+
+        if ($first -eq $second) {
+            $password = $password1
+            break
+        } else {
+            Write-Output "Passwords do not match. Please try again."
+        }
+    } while ($true)
+
+    # Create local user
     $params = @{
-        Name                     = $username
-        Password                 = $password
-        AccountNeverExpires      = $true
-        PasswordNeverExpires     = $true
+        Name                 = $username
+        Password             = $password
+        AccountNeverExpires  = $true
+        PasswordNeverExpires = $true
     }
 
     try {
-        New-LocalUser @params -ErrorAction Stop | Out-Null
-        Write-Host "SUCCESS: Created new user: $username" -ForegroundColor Green
-        "SUCCESS: Created new local user account: $username" | Out-File -FilePath $output -Encoding utf8 -Append
+        New-LocalUser @params -ErrorAction Stop
+        Write-Output "SUCCESS: Created new user: $username"
     } 
-    
     catch {
-        Write-Host "FAIL: Unable to create user: $($_.Exception.Message)" -ForegroundColor Red
-        "FAIL: Unable to create local user account: $($_.Exception.Message)" | Out-File -FilePath $output -Encoding utf8 -Append
+        Write-Output "FAIL: Unable to create user: $($_.Exception.Message)"
     }
 }
