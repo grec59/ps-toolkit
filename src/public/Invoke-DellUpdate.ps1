@@ -1,14 +1,42 @@
 function Run-DellUpdates {
+    [CmdletBinding()]
+    param(
+        [ValidateSet('Firmware','All')]
+        [string]$UpdateType = 'All'
+    )
+
     $dcu = 'C:\Program Files\Dell\CommandUpdate\dcu-cli.exe'
-    $log = 'C:\results.txt'
+    if (-not (Test-Path $dcu)) {
+        Write-Output "WARN: Dell CLI not found at $dcu. Skipping."
+        return
+    }
 
-    if (-not (Test-Path $dcu)) { Write-Output "WARN: Dell CLI not found. Skipping."; return }
+    $logDir = 'C:\ProgramData\Logs\DellCommandUpdate'
+    $null = New-Item -Path $logDir -ItemType Directory -Force
+    $log = Join-Path $logDir ("DCU_{0:yyyyMMdd_HHmmss}.log" -f (Get-Date))
 
-    Write-Output "Running Dell Updates..."
-    Remove-Item $log -ErrorAction SilentlyContinue
+    switch ($UpdateType) {
+        'Firmware' {
+            Write-Output "Running firmware-only updates..."
+            $params = "/applyUpdates -autoSuspendBitLocker=enable -forceUpdate=enable -updateType=bios,firmware"
+        }
+        'All' {
+            Write-Output "Running all updates..."
+            $params = "/applyUpdates -autoSuspendBitLocker=enable -forceUpdate=enable"
+        }
+    }
 
-    & $dcu /applyUpdates -autoSuspendBitLocker=enable -forceUpdate=enable 2>&1 |
-        ForEach-Object { "$([datetime]::Now) $_" | Tee-Object -FilePath $log -Append -Encoding UTF8 }
+    try {
+        & $dcu $params 2>&1 |
+            ForEach-Object {
+                "$([datetime]::Now) $_" |
+                    Tee-Object -FilePath $log -Append -Encoding UTF8
+            }
 
-    Write-Output "Updates completed. Log saved to $log"
+        Write-Output "DCU exit code: $LASTEXITCODE"
+        Write-Output "Updates completed. Log: $log"
+    }
+    catch {
+        Write-Output "ERROR running Dell Command Update: $($_.Exception.Message)"
+    }
 }
